@@ -1,6 +1,3 @@
-// require dot env
-let fs = require('fs');
-
 const DECODER = [
     // env: the weight of the environment factor to the property
     // offset: if the potential need to be add with the number after decode (only 1 for now)
@@ -9,6 +6,9 @@ const DECODER = [
     // basic stuff
     {name: 'speed', env: 1, codeLength: 10, pos: -5},
     {name: 'strength', env: 1, codeLength: 10},
+    {name: 'friendliness', env: 1, codeLength: 10},
+    {name: 'intelligence', codeLength: 10},
+    {name: 'outlook', codeLength: 10},
     // environment related
     {name: 'nativeEnv', codeLength: 4}, // native environment of the agent, higher usually harsher
     {name: 'envMove', offset: 1, codeLength: 3}, // ability to move to new environment
@@ -171,19 +171,30 @@ class Simulation {
      * @param {Agent[]} agents array of agent to create
      */
     constructor(width, height, agents) {
-        // create a map
-        this.map = [];
-        for (let l1 = 0; l1 < height; l1++) {
+        this.width = width; this.height = height;
+        // create a map and HTML to write
+        this.map = []; let outHTML = '';
+        // Pushing is in reverse to preserve [x][y]
+        for (let l1 = 0; l1 < width; l1++) {
             this.map.push([]);
-            for (let l2 = 0; l2 < width; l2++) this.map[l1].push(
-                {
+            outHTML += '<tr>';
+            for (let l2 = 0; l2 < height; l2++) {
+                this.map[l1].push({
                     environment: ~~(Math.random()*16), // environment code
                     agents: [], // list of agents in the chunk
-                }
-            )
+                });
+                let e = this.map[l1][l2].environment;
+                outHTML += `<td id="td${l1}-${l2}">${e < 10? '0' + e: e}</td>`;
+            }
+            outHTML += '</tr>';
         }
+        document.getElementById('map').innerHTML = outHTML; // update
 
-        // this.agents = [...agents]; // reference of agents?
+
+        if (!agents) return;
+        // Add agents randomly
+        for (const agent of agents)
+            this.map[~~(Math.random * width)][~~(Math.random * height)].agents.push(agent);
     }
     tick() {
         // run for every tick of the simulation
