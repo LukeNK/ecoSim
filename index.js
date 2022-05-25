@@ -9,6 +9,9 @@ const DECODER = [
     {name: 'friendliness', env: 1, codeLength: 10},
     {name: 'intelligence', codeLength: 10},
     {name: 'outlook', codeLength: 10},
+    // actions: chance for the agent to do something (Agent.tick())
+    {name : 'doAttack', offset: 1, codeLength: 4},
+    {name : 'doMate', offset: 1, codeLength: 4},
     // environment related
     {name: 'nativeEnv', codeLength: 4}, // native environment of the agent, higher usually harsher
     {name: 'envMove', offset: 1, codeLength: 3}, // ability to move to new environment
@@ -104,7 +107,7 @@ class Agent {
         if (
             this.age > this.properties.oldAge ||
             this.energy < 0
-            ) return this.die();
+        ) return this.die();
 
         // calculate the property if the agent is in different environment
         if (this.properties.nativeEnv != this.sim.map[this.x][this.y].environment) {
@@ -117,16 +120,56 @@ class Agent {
             }
         }
     }
+    /**
+     * Function that run for each tick to determine which action the agent will do
+     */
     tick() {
-        // run for each tick
+        // generate decision randomly
+        let totalDecision = 0;
+        for (const key in this.properties) {
+            if (!['doAttack', 'doMate'].includes(key)) continue; // only get necessary variable
+            totalDecision += this.properties[key];
+        }
+        let decision = Math.random() * totalDecision;
+        // check if more energy is needed
+        if (this.properties.energyConsumption > this.energy) {
+            // prioritize for necessary situation
+            this.attack(this.sim.getRandomAgent(this));
+        } else  {
 
+        }
     }
     /**
      * Attack an agent
      * @param {Agent} target agent to attack
      */
     attack(target) {
-
+        if (this.properties.speed < target.properties.speed) target.energy -= this.properties.speed;
+        else if (this.properties.speed == target.properties.speed && this.properties.intelligence < target.properties.intelligence) {
+            this.energy -= this.properties.speed;
+            target.energy -= target.properties.speed;
+        } else this.fight(target);
+    }
+    /**
+     * Continuation of attack()
+     * @param {Agent} target Agent to fight with
+     */
+    fight(target) {
+        this.energy -= this.properties.speed; target.energy -= target.properties.speed; // reduce energy
+        // calulate stats
+        let thisTotal = 0, targetTotal = 0;
+        for (const key in this.properties) {
+            if (!['speed', 'strength', 'intelligence'].includes(key)) continue; // only get necessary variable
+            thisTotal += this.properties[key];
+            targetTotal += target.properties[key];
+        }
+        if (thisTotal - targetTotal >= 0) {
+            this.energy += target.energy;
+            target.energy = 0; // flag to die
+        } else {
+            target.energy += this.energy;
+            this.energy = 0; // flag to die
+        }
     }
     /**
      * Mate with an agent
@@ -136,7 +179,7 @@ class Agent {
     mate(target) {
         let notFit = false;
         for (const key in target.properties) {
-            if (key == 'mateSelection') continue;
+            if (['mateSelection', 'energyConsumption', 'maxEnergy'].includes(key)) continue; // element to skip
             const element = target.properties[key];
             if (
                 Math.abs(element - this.properties[key]) > this.properties.mateSelection &&
@@ -224,6 +267,19 @@ class Simulation {
         if (reset) {
             a.x = undefined, a.y = undefined, a.z = undefined;
             a.sim = undefined;
+        }
+    }
+    /**
+     * Request another agent in the same chunk, or get entirely random agent if agent is blank. Return agent that was selected.
+     * @param {Agent} agent Agent that request
+     * @returns {Agent} Agent that was selected
+     */
+    getRandomAgent(agent) {
+        if (agent) {
+            let targetZ = agent.z;
+            while (targetZ == agent.z)
+                targetZ = ~~(Math.random() * this.map[agent.x][agent.y].agents.length);
+            return this.map[agent.x][agent.y].agents[targetZ]
         }
     }
 }

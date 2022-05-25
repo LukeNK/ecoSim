@@ -249,7 +249,17 @@
         }
     </script> <!-- Script imported for reference -->
     <script>
-        let sim = new Simulation(7,7);
+    let testSim= new Simulation(7,7);
+    let p = new Agent(null, null, testSim);
+    let m = new Agent(null, null, testSim);
+    testSim.newAgent(p, 0, 0);
+    testSim.newAgent(m, 0, 0);
+    p.properties.mateSelection = 1000;
+    m.properties.mateSelection = 1000;
+    c = p.mate(m);
+    c.move(1,1);
+    // console.table([c.trait.paternal, c.trait.maternal, c.trait.code]);
+    testSim.tick()
     </script>
 </body>
 </html>
