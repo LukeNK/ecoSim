@@ -16,12 +16,43 @@
             width: 2em;
             height: 2em;
         }
+        /* Classes */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 5;
+        }
+        /* ID */
+        #list, #property {
+            display: none;
+        }
     </style>
 </head>
 <body>
+    <!-- Overlays
+        Overlay to config simulator parameter -->
+    <div id="config" class="overlay">
+        <label>Simulation Width (x)</label>
+        <input id="configWidth" type="number">
+        <label>Simulation Height (y)</label>
+        <input id="configHeight" type="number">
+        <button onclick="simInit()">Start simulation</button>
+    </div>
+    <!-- Overlay of the list of agent in a chunk -->
+    <div id="list" class="overlay">
+
+    </div>
+    <!-- Overlay for the property list -->
+    <div id="property" class="overlay">
+
+    </div>
+
     <table id="map">
         <tr></tr>
     </table>
+    <!-- Controls-->
+    <button onclick="mainSim.tick()">Tick</button>
+
     <script src="./index.js">
         import * as graphix from 'graphix.js'
 
@@ -249,17 +280,23 @@
         }
     </script> <!-- Script imported for reference -->
     <script>
-    let testSim= new Simulation(7,7);
-    let p = new Agent(null, null, testSim);
-    let m = new Agent(null, null, testSim);
-    testSim.newAgent(p, 0, 0);
-    testSim.newAgent(m, 0, 0);
-    p.properties.mateSelection = 1000;
-    m.properties.mateSelection = 1000;
-    c = p.mate(m);
-    c.move(1,1);
-    // console.table([c.trait.paternal, c.trait.maternal, c.trait.code]);
-    testSim.tick()
+        let mainSim = null; // intialize
+        function simInit() {
+            mainSim= new Simulation(
+                document.getElementById('configHeight').value,
+                document.getElementById('configWidth').value); // swap because it is complicate...
+            document.getElementById('config').style.display = 'none';
+            let p = new Agent(null, null, mainSim);
+            let m = new Agent(null, null, mainSim);
+            mainSim.newAgent(p, 0, 0);
+            mainSim.newAgent(m, 0, 0);
+            p.properties.mateSelection = 1000;
+            m.properties.mateSelection = 1000;
+            c = p.mate(m);
+            c.move(1,1);
+            // console.table([c.trait.paternal, c.trait.maternal, c.trait.code]);
+            mainSim.tick()
+        }
     </script>
 </body>
 </html>

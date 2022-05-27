@@ -12,6 +12,7 @@ const DECODER = [
     // actions: chance for the agent to do something (Agent.tick())
     {name : 'doAttack', offset: 1, codeLength: 4},
     {name : 'doMate', offset: 1, codeLength: 4},
+    {name : 'doMove', offset: 1, codeLength: 4},
     // environment related
     {name: 'nativeEnv', codeLength: 4}, // native environment of the agent, higher usually harsher
     {name: 'envMove', offset: 1, codeLength: 3}, // ability to move to new environment
@@ -127,7 +128,7 @@ class Agent {
         // generate decision randomly
         let totalDecision = 0;
         for (const key in this.properties) {
-            if (!['doAttack', 'doMate'].includes(key)) continue; // only get necessary variable
+            if (!['doAttack', 'doMate', 'doMove'].includes(key)) continue; // only get necessary variable
             totalDecision += this.properties[key];
         }
         let decision = Math.random() * totalDecision;
@@ -148,27 +149,22 @@ class Agent {
         else if (this.properties.speed == target.properties.speed && this.properties.intelligence < target.properties.intelligence) {
             this.energy -= this.properties.speed;
             target.energy -= target.properties.speed;
-        } else this.fight(target);
-    }
-    /**
-     * Continuation of attack()
-     * @param {Agent} target Agent to fight with
-     */
-    fight(target) {
-        this.energy -= this.properties.speed; target.energy -= target.properties.speed; // reduce energy
-        // calulate stats
-        let thisTotal = 0, targetTotal = 0;
-        for (const key in this.properties) {
-            if (!['speed', 'strength', 'intelligence'].includes(key)) continue; // only get necessary variable
-            thisTotal += this.properties[key];
-            targetTotal += target.properties[key];
-        }
-        if (thisTotal - targetTotal >= 0) {
-            this.energy += target.energy;
-            target.energy = 0; // flag to die
         } else {
-            target.energy += this.energy;
-            this.energy = 0; // flag to die
+            this.energy -= this.properties.speed; target.energy -= target.properties.speed; // reduce energy
+            // calulate stats
+            let thisTotal = 0, targetTotal = 0;
+            for (const key in this.properties) {
+                if (!['speed', 'strength', 'intelligence'].includes(key)) continue; // only get necessary variable
+                thisTotal += this.properties[key];
+                targetTotal += target.properties[key];
+            }
+            if (thisTotal - targetTotal >= 0) {
+                this.energy += target.energy + target.properties.energyConsumption;
+                target.energy = 0; // flag to die
+            } else {
+                target.energy += this.energy + this.properties.energyConsumption;
+                this.energy = 0; // flag to die
+            }
         }
     }
     /**
@@ -227,7 +223,9 @@ class Simulation {
                     agents: [], // list of agents in the chunk
                 });
                 let e = this.map[l1][l2].environment;
-                outHTML += `<td id="td${l1}-${l2}">${e < 10? '0' + e: e}</td>`;
+                outHTML += `<td id="td${l1}-${l2}">${e < 10? '0' + e: e}
+                        <button id="btn${l1}-${l2}"></button>
+                    </td>`;
             }
             outHTML += '</tr>';
         }
@@ -239,11 +237,22 @@ class Simulation {
         for (const agent of agents)
             this.map[~~(Math.random * width)][~~(Math.random * height)].agents.push(agent);
     }
+    /**
+     * Call preTick() and tick() for every agent
+     */
     tick() {
         // run for every tick of the simulation
         for (const x of this.map)
             for (const y of x)
-                for (const agent of y.agents) agent.preTick()
+                for (const agent of y.agents) agent.preTick();
+        for (const x of this.map)
+            for (const y of x)
+                for (const agent of y.agents) agent.tick()
+
+        // Update display
+        for (const x in this.map)
+            for (const y in this.map[x])
+                document.getElementById(`btn${x}-${y}`).innerHTML = this.map[x][y].agents.length;
     }
     /**
      * Handle the process to add agent to the simulation
