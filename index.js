@@ -144,7 +144,7 @@ class Agent {
         // check if the agent should die yet
         if (
             this.age > this.properties.oldAge ||
-            this.energy < 0
+            this.energy <= 0
         ) return this.die();
 
         // calculate the property if the agent is in different environment

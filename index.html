@@ -13,6 +13,19 @@
             --color-white: #f0f0f0;
             --font: 'Courier New', Courier, monospace
         }
+        /* width */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        /* Track */
+        ::-webkit-scrollbar-track {
+            border: 1px solid var(--color-blue);
+        }
+        /* Handle */
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-fg);
+        }
+
         body, * {
             color: var(--color-fg);
             background-color: var(--color-bg);
@@ -26,8 +39,8 @@
             vertical-align: middle;
         }
         td {
-            width: 2em;
-            height: 2em;
+            width: 2rem;
+            height: 2rem;
         }
         button, input {
             border: 1px solid var(--color-blue);
@@ -56,10 +69,15 @@
             width: 100%;
             height: 100%;
         }
+        #map button:hover {
+            color: var(--color-bg);
+            background-color: var(--color-blue);
+        }
         #list {
             left: 50vw;
             color: var(--color-bg);
-            background-color: var(--color-fg);
+            border: 1px solid var(--color-fg);
+            overflow: auto;
         }
     </style>
 </head>
@@ -77,24 +95,24 @@
     </div>
     <!-- Overlay of the list of agent in a chunk -->
     <div id="list" class="overlay">
-        <button class="redButton">X</button>
-        <p>Chunk inspection</p>
-        <p>Chunk population: <span id="chunkPopulation"></span></p>
-        <div id="agentList"></div>
+        <p style="margin-top: 0px;"><button class="redButton" onclick="document.getElementById('list').style.display = 'none'">Close</button>Chunk inspection</p>
+        <div style="padding-left: 1rem;">
+            <p>Chunk population: <span id="chunkPopulation"></span></p>
+            <p>Agent list:</p>
+            <dl id="agentList"></dl>
+        </div>
     </div>
     <!-- Overlay for the property list -->
     <div id="property" class="overlay">
 
     </div>
 
-    <table id="map">
-        <tr></tr>
-    </table>
+    <table id="map"></table>
     <p>Population: <span id="population"></span></p>
     <p>Total birth: <span id="totalMating"></span></p>
     <p>Total death: <span id="totalDeath"></span></p>
     <!-- Controls-->
-    <button onclick="mainSim.tick()">Tick: <span id="tickCount"></span></button>
+    <button onclick="tick()">Tick: <span id="tickCount"></span></button>
     <button onclick="playSimulation()">Run/Pause simulation</button>
 
 
@@ -419,22 +437,31 @@ class Simulation {
             mainSim.tick(); // do one tick for initialization
             document.getElementById('config').style.display = 'none'; // hide config screen
         }
+        let openListSave = {x:0, y:0}
         function openList(x, y) {
+            if (!x || !y) {x = openListSave.x, y = openListSave.y};
+            openListSave.x = x; openListSave.y = y;
             let chunk = mainSim.map[x][y];
             let agents = chunk.agents;
             document.getElementById('chunkPopulation').innerText = agents.length;
 
+            let res = '';
+            for (const agent of agents) 
+                res += `<dt><button>${agent.trait.getId()}</button></dt><dd>Age: ${agent.age}/${agent.properties.oldAge}</dd><dd>Engery: ${agent.energy}</dd>`
 
             // display the result
+            document.getElementById('agentList').innerHTML = res;
             document.getElementById('list').style.display = 'block';
+        }
+        function tick() {
+            mainSim.tick();
+            openList();
+            if (mainSim.getAgentCount() <= 1) clearInterval(simInterval);
         }
         let simInterval = null;
         function playSimulation() {
             if (!simInterval) {
-                simInterval = setInterval(() => {
-                    mainSim.tick();
-                    if (mainSim.getAgentCount() == 0) clearInterval(simInterval);
-                }, 500)
+                simInterval = setInterval(tick, 500)
             } else
                 try {clearInterval(simInterval); simInterval = null;} catch{}
         }
