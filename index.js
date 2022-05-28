@@ -42,6 +42,8 @@ const DECODER = [
     {name: 'energyConsumption', codeLength: 5}, // now much energy takes for each tick
     // age in tick
     {name: 'oldAge', offset: 1, codeLength: 10}, // the age where the agent dies, offset so it always > 0
+    {name: 'matureAge', codeLength: 5}, // time until able to mate
+    // mating-relate
     {name: 'breedingTime', codeLength: 5}, // How long it took before the Agent able to mate again
     {name: 'mateSelection', codeLength: 10}, // how selective is the agent to mate
 ]
@@ -51,7 +53,7 @@ const DECODER_TRAITS = {
     // Elements to check in for loops
     decision: ['doAttack', 'doMate', 'doMove'],
     ability: ['speed', 'strength', 'intelligence'],
-    mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy', 'breedingTime']
+    mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy', 'breedingTime', 'oldAge', 'matureAge']
 }
 
 class Trait {
@@ -206,7 +208,8 @@ class Agent {
      */
     mate(target) {
         let notFit = false;
-        if (this.breedingCooldown && target.breedingCooldown) notFit = true;
+        if (this.breedingCooldown || target.breedingCooldown) notFit = true;
+        if (this.age < this.properties.matureAge || target.age < target.properties.matureAge) notFit = true; // FBI HERE OPEN UP
         for (const key in target.properties) {
             if (DECODER_TRAITS.mateExclude.includes(key)) continue; // element to skip
             const element = target.properties[key];
@@ -358,5 +361,3 @@ class Simulation {
         }
     }
 }
-// 0-5
-0-1
