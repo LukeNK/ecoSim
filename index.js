@@ -1,3 +1,24 @@
+// extra modules
+const ext = {
+    /**
+     * Cleaner console.log()
+     * @param {String} content Input string for loggin
+     * @param {Number|String} level The level of importance, can be customize with string
+     * @param {String} sender The function that send the content (better if call stack)
+     */
+    log: (content, level, sender) => {
+        const minLevel = 1;
+        const lvl = ['NONE', 'INFO', 'WARN', 'CRIT', 'ERROR', 'EXIT', 'DEBUG']
+        if (level < minLevel) return;
+        content = `${sender? ' @ ' + sender: ''}] ${content}`
+        if (typeof(level) == 'string') console.log(`[${level}${content}`);
+        else if (level == 1) console.info(`[INFO${content}`)
+        else if (level == 2) console.warn(`[WARN${content}`);
+        else if (level == 4) console.error(`[ERROR${content}`);
+        else console.log(`[${lvl[level? level : 0]}${content}`);
+    },
+}
+
 const DECODER = [
     // env: the weight of the environment factor to the property
     // offset: if the potential need to be add with the number after decode (only 1 for now)
@@ -26,6 +47,12 @@ const DECODER = [
 ]
 let DECODER_TOTAL = 0;
 for (const potential of DECODER) DECODER_TOTAL += potential.codeLength;
+const DECODER_TRAITS = {
+    // Elements to check in for loops
+    decision: ['doAttack', 'doMate', 'doMove'],
+    ability: ['speed', 'strength', 'intelligence'],
+    mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy']
+}
 
 class Trait {
     /**
@@ -78,14 +105,14 @@ class Agent {
         if (p && m) {
             this.paternal = p; this.maternal = m;
             this.trait = new Trait(
-                p.trait[~~(Math.random() + 0.5)? 'paternal' : 'maternal'],
-                m.trait[~~(Math.random() + 0.5)? 'paternal' : 'maternal']
+                p.trait[Math.round(Math.random())? 'paternal' : 'maternal'],
+                m.trait[Math.round(Math.random())? 'paternal' : 'maternal']
             );
         } else {
             let pCode = [], mCode = [];
             for (let l = 0; l < DECODER_TOTAL; l++) {
-                pCode.push(~~(Math.random() + 0.5));
-                mCode.push(~~(Math.random() + 0.5));
+                pCode.push(Math.round(Math.random()));
+                mCode.push(Math.round(Math.random()));
             }
             this.trait = new Trait(pCode, mCode);
         }
@@ -94,8 +121,14 @@ class Agent {
         // extra non-genertic properties
         this.age = 0;
         this.energy = this.properties.maxEnergy;
+        // generate total decision for use in tick()
+        this.totalDecision = 0;
+        for (const key in this.properties) {
+            if (!DECODER_TRAITS.decision.includes(key)) continue; // only get necessary variable
+            this.totalDecision += this.properties[key];
+        }
 
-        // other properties
+        // location properties
         this.x = 0; this.y = 0; this.z = 0; // coord
         this.sim = sim; // simulation reference
     }
@@ -125,19 +158,16 @@ class Agent {
      * Function that run for each tick to determine which action the agent will do
      */
     tick() {
-        // generate decision randomly
-        let totalDecision = 0;
-        for (const key in this.properties) {
-            if (!['doAttack', 'doMate', 'doMove'].includes(key)) continue; // only get necessary variable
-            totalDecision += this.properties[key];
-        }
-        let decision = Math.random() * totalDecision;
-        // check if more energy is needed
-        if (this.properties.energyConsumption > this.energy) {
-            // prioritize for necessary situation
-            this.attack(this.sim.getRandomAgent(this));
-        } else  {
-
+        let decision = Math.random() * this.totalDecision, cur = 0;
+        for (const key of DECODER_TRAITS.decision) {
+            cur += this.properties[key];
+            if (decision < cur) {
+                let alone = (this.sim.getRandomAgent(this) == null); // check if alone or not
+                if (!alone && key == 'doAttack') this.attack(this.sim.getRandomAgent(this));
+                else if (!alone && key == 'doMate') this.mate(this.sim.getRandomAgent(this));
+                else if (alone && key == 'doMove') this.move();
+                break; // finish tick
+            }
         }
     }
     /**
@@ -145,24 +175,24 @@ class Agent {
      * @param {Agent} target agent to attack
      */
     attack(target) {
-        if (this.properties.speed < target.properties.speed) target.energy -= this.properties.speed;
-        else if (this.properties.speed == target.properties.speed && this.properties.intelligence < target.properties.intelligence) {
-            this.energy -= this.properties.speed;
-            target.energy -= target.properties.speed;
+        let ap = target.properties, tp = this.properties;
+        if (tp.speed < ap.speed) target.energy -= tp.speed;
+        else if (tp.speed == ap.speed && tp.intelligence < ap.intelligence) {
+            this.energy -= tp.speed;
+            target.energy -= ap.speed;
         } else {
-            this.energy -= this.properties.speed; target.energy -= target.properties.speed; // reduce energy
+            this.energy -= tp.speed; target.energy -= ap.speed; // reduce energy
             // calulate stats
             let thisTotal = 0, targetTotal = 0;
-            for (const key in this.properties) {
-                if (!['speed', 'strength', 'intelligence'].includes(key)) continue; // only get necessary variable
-                thisTotal += this.properties[key];
-                targetTotal += target.properties[key];
+            for (const key of DECODER_TRAITS.ability) {
+                thisTotal += tp[key];
+                targetTotal += ap[key];
             }
-            if (thisTotal - targetTotal >= 0) {
-                this.energy += target.energy + target.properties.energyConsumption;
+            if (thisTotal >= targetTotal) {
+                this.energy += target.energy + ap.energyConsumption;
                 target.energy = 0; // flag to die
             } else {
-                target.energy += this.energy + this.properties.energyConsumption;
+                target.energy += this.energy + tp.energyConsumption;
                 this.energy = 0; // flag to die
             }
         }
@@ -175,7 +205,7 @@ class Agent {
     mate(target) {
         let notFit = false;
         for (const key in target.properties) {
-            if (['mateSelection', 'energyConsumption', 'maxEnergy'].includes(key)) continue; // element to skip
+            if (DECODER_TRAITS.mateExclude.includes(key)) continue; // element to skip
             const element = target.properties[key];
             if (
                 Math.abs(element - this.properties[key]) > this.properties.mateSelection &&
@@ -193,12 +223,15 @@ class Agent {
      * @param {Number} y
      */
     move(x, y) {
+        if (x == undefined) x = ~~(Math.random() * this.sim.width);
+        if (y == undefined) y = ~~(Math.random() * this.sim.height);
         this.sim.rmAgent(this); // delete from current position
         this.sim.newAgent(this, x, y); // move to new place
     }
     die() {
         // nope there is no better name
         this.sim.rmAgent(this, true);
+        ext.log('Agent ' + this.trait.getId() + ' died', 0, 'Agent.die()')
     }
 }
 
@@ -219,7 +252,7 @@ class Simulation {
             outHTML += '<tr>';
             for (let l2 = 0; l2 < height; l2++) {
                 this.map[l1].push({
-                    environment: ~~(Math.random()*16), // environment code
+                    environment: ~~(Math.random() * 16), // environment code
                     agents: [], // list of agents in the chunk
                 });
                 let e = this.map[l1][l2].environment;
@@ -231,11 +264,10 @@ class Simulation {
         }
         document.getElementById('map').innerHTML = outHTML; // update
 
-
         if (!agents) return;
         // Add agents randomly
         for (const agent of agents)
-            this.map[~~(Math.random * width)][~~(Math.random * height)].agents.push(agent);
+            this.newAgent(agent, ~~(Math.random() * width), ~~(Math.random() * height));
     }
     /**
      * Call preTick() and tick() for every agent
@@ -253,6 +285,7 @@ class Simulation {
         for (const x in this.map)
             for (const y in this.map[x])
                 document.getElementById(`btn${x}-${y}`).innerHTML = this.map[x][y].agents.length;
+        document.getElementById('population').innerHTML = this.getAgentCount();
     }
     /**
      * Handle the process to add agent to the simulation
@@ -273,10 +306,24 @@ class Simulation {
      */
     rmAgent(a, reset) {
         this.map[a.x][a.y].agents.splice(a.z, 1);
+        // Update agents' Z in that same chunk
+        for (const z in this.map[a.x][a.y].agents)
+            this.map[a.x][a.y].agents[z].z = z;
         if (reset) {
             a.x = undefined, a.y = undefined, a.z = undefined;
             a.sim = undefined;
         }
+    }
+    /**
+     * Get the total population
+     * @returns {Number} The total population in the simulation
+     */
+    getAgentCount() {
+        let res = 0;
+        for (const x of this.map)
+            for (const y of x)
+                res += y.agents.length;
+        return res;
     }
     /**
      * Request another agent in the same chunk, or get entirely random agent if agent is blank. Return agent that was selected.
@@ -286,9 +333,12 @@ class Simulation {
     getRandomAgent(agent) {
         if (agent) {
             let targetZ = agent.z;
+            if (this.map[agent.x][agent.y].agents.length == 1) return null;
             while (targetZ == agent.z)
                 targetZ = ~~(Math.random() * this.map[agent.x][agent.y].agents.length);
-            return this.map[agent.x][agent.y].agents[targetZ]
+            return this.map[agent.x][agent.y].agents[targetZ];
         }
     }
 }
+// 0-5
+0-1
