@@ -53,8 +53,13 @@
         <tr></tr>
     </table>
     <p>Population: <span id="population"></span></p>
+    <p>Total mating: <span id="totalMating"></span></p>
+    <p>Total death: <span id="totalDeath"></span></p>
     <!-- Controls-->
-    <button onclick="mainSim.tick()">Tick</button>
+    <button onclick="mainSim.tick()">Tick: <span id="tickCount"></span></button>
+    <button onclick="playSimulation(true)">Play simulation</button>
+    <button onclick="playSimulation()">Stop simulation</button>
+
 
     <script src="./index.js">
         const DECODER = [
@@ -376,6 +381,19 @@ class Simulation {
             for (const agent of arr) agent.sim = mainSim; // bodge
             mainSim.tick(); // do one tick for initialization
             document.getElementById('config').style.display = 'none'; // hide config screen
+        }
+        function openList(x, y) {
+
+        }
+        let simInterval = null;
+        function playSimulation(act) {
+            if (act) {
+                simInterval = setInterval(() => {
+                    mainSim.tick();
+                    if (mainSim.getAgentCount() == 0) clearInterval(simInterval);
+                }, 500)
+            } else
+                clearInterval(simInterval);
         }
     </script>
 </body>

@@ -42,7 +42,7 @@ const DECODER = [
     {name: 'energyConsumption', codeLength: 5}, // now much energy takes for each tick
     // age in tick
     {name: 'oldAge', offset: 1, codeLength: 10}, // the age where the agent dies, offset so it always > 0
-    {name: 'matureAge', codeLength: 9}, // TODO
+    {name: 'breedingTime', codeLength: 5}, // How long it took before the Agent able to mate again
     {name: 'mateSelection', codeLength: 10}, // how selective is the agent to mate
 ]
 let DECODER_TOTAL = 0;
@@ -51,7 +51,7 @@ const DECODER_TRAITS = {
     // Elements to check in for loops
     decision: ['doAttack', 'doMate', 'doMove'],
     ability: ['speed', 'strength', 'intelligence'],
-    mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy']
+    mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy', 'breedingTime']
 }
 
 class Trait {
@@ -121,6 +121,7 @@ class Agent {
         // extra non-genertic properties
         this.age = 0;
         this.energy = this.properties.maxEnergy;
+        this.breedingCooldown = 0;
         // generate total decision for use in tick()
         this.totalDecision = 0;
         for (const key in this.properties) {
@@ -136,6 +137,7 @@ class Agent {
         // to make sure that the agent is ready for actions
         this.age++; // increase the age
         this.energy -= this.properties.energyConsumption;
+        if (this.breedingCooldown != 0) this.breedingCooldown--; // decrease cooldown
 
         // check if the agent should die yet
         if (
@@ -204,6 +206,7 @@ class Agent {
      */
     mate(target) {
         let notFit = false;
+        if (this.breedingCooldown && target.breedingCooldown) notFit = true;
         for (const key in target.properties) {
             if (DECODER_TRAITS.mateExclude.includes(key)) continue; // element to skip
             const element = target.properties[key];
@@ -213,6 +216,10 @@ class Agent {
             ) { notFit = true; break }
         }
         if (notFit) return false;
+        // Flag that already mated
+        this.breedingCooldown = this.properties.breedingTime;
+        this.sim.stats.totalMating++; // report stats
+
         let child = new Agent(this, target, this.sim); // give birth to the new child
         this.sim.newAgent(child, this.x, this.y);
         return child; // return back, careful not to to repeat newAgent() process again
@@ -230,8 +237,8 @@ class Agent {
     }
     die() {
         // nope there is no better name
-        this.sim.rmAgent(this, true);
-        ext.log('Agent ' + this.trait.getId() + ' died', 0, 'Agent.die()')
+        this.sim.stats.totalDeath++; // report first
+        this.sim.rmAgent(this, true); // remove out of existence
     }
 }
 
@@ -257,7 +264,7 @@ class Simulation {
                 });
                 let e = this.map[l1][l2].environment;
                 outHTML += `<td id="td${l1}-${l2}">${e < 10? '0' + e: e}
-                        <button id="btn${l1}-${l2}"></button>
+                        <button id="btn${l1}-${l2}" onclick="openList(${l1}, ${l2})"></button>
                     </td>`;
             }
             outHTML += '</tr>';
@@ -268,6 +275,13 @@ class Simulation {
         // Add agents randomly
         for (const agent of agents)
             this.newAgent(agent, ~~(Math.random() * width), ~~(Math.random() * height));
+
+        this.stats = {
+            // statistic for report
+            totalMating: 0,
+            totalDeath: 0,
+            tickCount: 0,
+        }
     }
     /**
      * Call preTick() and tick() for every agent
@@ -281,11 +295,15 @@ class Simulation {
             for (const y of x)
                 for (const agent of y.agents) agent.tick()
 
+        this.stats.tickCount++; // report
+
         // Update display
         for (const x in this.map)
             for (const y in this.map[x])
                 document.getElementById(`btn${x}-${y}`).innerHTML = this.map[x][y].agents.length;
-        document.getElementById('population').innerHTML = this.getAgentCount();
+        document.getElementById('tickCount').innerText = this.stats.tickCount;
+        document.getElementById('population').innerText = this.getAgentCount();
+        document.getElementById('totalMating').innerText = this.stats.totalMating;
     }
     /**
      * Handle the process to add agent to the simulation
