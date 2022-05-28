@@ -1,30 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {
-            color: white;
-            background-color: darkslategray;
-            font-family: 'Courier New', Courier, monospace
+        :root {
+            --color-bg: #151515ff;
+            --color-red: #a63d40ff;
+            --color-yellow: #e9b872ff;
+            --color-green: #90a959ff;
+            --color-blue: #6494aaff;
+            --color-fg: #5BC0BE;
+            --color-white: #f0f0f0;
+            --font: 'Courier New', Courier, monospace
+        }
+        body, * {
+            color: var(--color-fg);
+            background-color: var(--color-bg);
+            font-family: var(--font);
+        }
+        p {
+            font-family: var(--font);
         }
         table {
             text-align: center;
             vertical-align: middle;
         }
         td {
-            border: 1px solid red;
             width: 2em;
             height: 2em;
+        }
+        button, input {
+            border: 1px solid var(--color-blue);
+            border-radius: 0px;
+            outline: none;
+            color: var(--color-fg);
+            background-color: transparent;
         }
         /* Classes */
         .overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             z-index: 5;
+            background-color: var(--color-bg);
+        }
+        .redButton {
+            border: 1px solid var(--color-red);
+            background-color: var(--color-red);
+            color: var(--color-white);
         }
         /* ID */
         #list, #property {
             display: none;
+        }
+        #map button {
+            width: 100%;
+            height: 100%;
+        }
+        #list {
+            left: 50vw;
+            color: var(--color-bg);
+            background-color: var(--color-fg);
         }
     </style>
 </head>
@@ -35,14 +70,17 @@
         <label>Simulation Width (x)</label>
         <input id="configWidth" type="number">
         <label>Simulation Height (y)</label>
-        <input id="configHeight" type="number">
+        <input id="configHeight" type="number"><br>
         <label>Starting population</label>
-        <input id="configStartPopulation" type="number">
+        <input id="configStartPopulation" type="number"><br>
         <button onclick="simInit()">Start simulation</button>
     </div>
     <!-- Overlay of the list of agent in a chunk -->
     <div id="list" class="overlay">
-
+        <button class="redButton">X</button>
+        <p>Chunk inspection</p>
+        <p>Chunk population: <span id="chunkPopulation"></span></p>
+        <div id="agentList"></div>
     </div>
     <!-- Overlay for the property list -->
     <div id="property" class="overlay">
@@ -53,12 +91,11 @@
         <tr></tr>
     </table>
     <p>Population: <span id="population"></span></p>
-    <p>Total mating: <span id="totalMating"></span></p>
+    <p>Total birth: <span id="totalMating"></span></p>
     <p>Total death: <span id="totalDeath"></span></p>
     <!-- Controls-->
     <button onclick="mainSim.tick()">Tick: <span id="tickCount"></span></button>
-    <button onclick="playSimulation(true)">Play simulation</button>
-    <button onclick="playSimulation()">Stop simulation</button>
+    <button onclick="playSimulation()">Run/Pause simulation</button>
 
 
     <script src="./index.js">
@@ -383,17 +420,23 @@ class Simulation {
             document.getElementById('config').style.display = 'none'; // hide config screen
         }
         function openList(x, y) {
+            let chunk = mainSim.map[x][y];
+            let agents = chunk.agents;
+            document.getElementById('chunkPopulation').innerText = agents.length;
 
+
+            // display the result
+            document.getElementById('list').style.display = 'block';
         }
         let simInterval = null;
-        function playSimulation(act) {
-            if (act) {
+        function playSimulation() {
+            if (!simInterval) {
                 simInterval = setInterval(() => {
                     mainSim.tick();
                     if (mainSim.getAgentCount() == 0) clearInterval(simInterval);
                 }, 500)
             } else
-                clearInterval(simInterval);
+                try {clearInterval(simInterval); simInterval = null;} catch{}
         }
     </script>
 </body>

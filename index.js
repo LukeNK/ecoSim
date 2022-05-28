@@ -265,8 +265,7 @@ class Simulation {
                     environment: ~~(Math.random() * 16), // environment code
                     agents: [], // list of agents in the chunk
                 });
-                let e = this.map[l1][l2].environment;
-                outHTML += `<td id="td${l1}-${l2}">${e < 10? '0' + e: e}
+                outHTML += `<td id="td${l1}-${l2}">
                         <button id="btn${l1}-${l2}" onclick="openList(${l1}, ${l2})"></button>
                     </td>`;
             }
@@ -307,6 +306,7 @@ class Simulation {
         document.getElementById('tickCount').innerText = this.stats.tickCount;
         document.getElementById('population').innerText = this.getAgentCount();
         document.getElementById('totalMating').innerText = this.stats.totalMating;
+        document.getElementById('totalDeath').innerText = this.stats.totalDeath;
     }
     /**
      * Handle the process to add agent to the simulation
