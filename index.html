@@ -52,6 +52,7 @@
         button:hover {
             color: var(--color-bg);
             background-color: var(--color-blue);
+            cursor: pointer;
         }
         /* Classes */
         .overlay {
@@ -64,6 +65,10 @@
             border: 1px solid var(--color-red);
             background-color: var(--color-red);
             color: var(--color-white);
+        }
+        .redButton:hover {
+            background-color: var(--color-white);
+            color: var(--color-red);
         }
         /* ID */
         #list, #property {
@@ -105,6 +110,10 @@
     <!-- Overlay of the list of agent in a chunk -->
     <div id="list" class="overlay">
         <p style="margin-top: 0px;"><button class="redButton" onclick="document.getElementById('list').style.display = 'none'">Close</button>Chunk inspection</p>
+        <button onclick="randDo(0)">Kill random agents</button>
+        <button onclick="randDo(1)">Move random agents</button>
+        <input id="randKillRate" style="width: 5rem;" type="number">
+        <button onclick="mainSim.map[openListSave.x][openListSave.y].agents = []; tick()">Kill all agent</button>
         <div style="padding-left: 1rem;">
             <p>Chunk population: <span id="chunkPopulation"></span>,
                 resource: <span id="chunkResource"></span>,
@@ -116,6 +125,10 @@
     <!-- Overlay for the property list -->
     <div id="property" class="overlay">
         <p style="margin-top: 0px;"><button class="redButton" onclick="document.getElementById('property').style.display = 'none'">Close</button>Agent properties</p>
+        <button onclick="mainSim.map[openListSave.x][openListSave.y].agents[openListSave.z].die(); tick()">
+            Kill agent
+        </button>
+        <button onclick="mainSim.map[openListSave.x][openListSave.y].agents[openListSave.z].move(); tick()">Force move</button>
         <dl id="agentProperty"></dl>
     </div>
 
@@ -464,6 +477,15 @@ class Simulation {
             } else
                 try {clearInterval(simInterval); simInterval = null;} catch{}
         }
+        function randDo(act) {
+            let rate = document.getElementById('randKillRate').value;
+            for (agent of mainSim.map[openListSave.x][openListSave.y].agents)
+                if (Math.random() <= rate) {
+                    if (act == 0) agent.die();
+                    else agent.move();
+                }
+            tick();
+        }
 
         // display
         let openListSave = {x:0, y:0, z:0}
@@ -496,7 +518,13 @@ class Simulation {
             else openListSave.z = z;
             let a = mainSim.map[openListSave.x][openListSave.y].agents[z];
             if (a == undefined) return;
-            let res = `<p>Trait Id: ${a.trait.getId()}</p><dt>Properties</dt>`;
+            let res = `<p>Trait Id: ${a.trait.getId()}</p>`;
+            if (a.paternal && a.maternal) {
+                res += `<dt>Parents</dt>
+                    <dd>${a.paternal.trait.getId()}</dd>
+                    <dd>${a.maternal.trait.getId()}</dd>`;
+            }
+            res += '<dt>Properties</dt>'
             for (const key in a.properties) {
                 const element = a.properties[key];
                 res += `<dd>${key}: ${element}</dd>`

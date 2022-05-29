@@ -25,9 +25,9 @@ const DECODER = [
     // codeLength: the length in the code
     // pos: position offset
     // basic stuff
-    {name: 'speed', env: 1, codeLength: 10, pos: -5},
+    {name: 'speed', env: 1, codeLength: 10},
     {name: 'strength', env: 1, codeLength: 10},
-    {name: 'friendliness', env: 1, codeLength: 10},
+    {name: 'friendliness', env: 1, codeLength: 10, pos: -5},
     {name: 'intelligence', codeLength: 10},
     {name: 'outlook', codeLength: 10},
     // actions: chance for the agent to do something (Agent.tick())
@@ -48,7 +48,7 @@ const DECODER = [
     {name: 'mateSelection', codeLength: 10}, // how selective is the agent to mate
 ]
 let DECODER_TOTAL = 0;
-for (const potential of DECODER) DECODER_TOTAL += potential.codeLength;
+for (const potential of DECODER) DECODER_TOTAL += potential.codeLength + (potential.pos? potential.pos : 0);
 const DECODER_TRAITS = {
     // Elements to check in for loops
     decision: ['doAttack', 'doMate', 'doMove'],
@@ -80,7 +80,10 @@ class Trait {
         this.potentials = {}; // List of potentials and properties
         for (const potential of DECODER)
             this.potentials[potential.name] = potential.codeLength;
-        for (let l = 0, t = 0; l < this.code.length; l += DECODER[t].codeLength, t++) {
+        for (let l = 0, t = 0;
+            t < DECODER.length;
+            l += DECODER[t].codeLength + (DECODER[t].pos? DECODER[t].pos : 0), t++
+        ) {
             let pCode = ''; // potential code
             for (let l1 = 0; l1 < DECODER[t].codeLength; l1++) pCode += this.code[l + l1]? '1':'0';
             this.potentials[DECODER[t].name] = parseInt(pCode, 2) + (DECODER[t].offset? DECODER[t].offset : 0);
@@ -314,8 +317,15 @@ class Simulation {
 
         // Update display
         for (const x in this.map)
-            for (const y in this.map[x])
-                document.getElementById(`btn${x}-${y}`).innerHTML = this.map[x][y].agents.length;
+            for (const y in this.map[x]) {
+                let pop = this.map[x][y].agents.length;
+                let btn = document.getElementById(`btn${x}-${y}`);
+                if (pop <= 0) btn.style.display = 'none';
+                else  {
+                    btn.innerHTML = pop;
+                    if (btn.style.display == 'none') btn.style.display = 'inline';
+                }
+            }
         document.getElementById('tickCount').innerText = this.stats.tickCount;
         document.getElementById('population').innerText = this.getAgentCount();
         document.getElementById('totalMating').innerText = this.stats.totalMating;
