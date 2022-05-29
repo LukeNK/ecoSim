@@ -139,6 +139,7 @@ class Agent {
         // to make sure that the agent is ready for actions
         this.age++; // increase the age
         this.energy -= this.properties.energyConsumption;
+        this.sim.map[this.x][this.y].resource += this.properties.energyConsumption;
         if (this.breedingCooldown != 0) this.breedingCooldown--; // decrease cooldown
 
         // check if the agent should die yet
@@ -162,6 +163,7 @@ class Agent {
      * Function that run for each tick to determine which action the agent will do
      */
     tick() {
+        this.energy += this.sim.map[this.x][this.y].resource;
         let decision = Math.random() * this.totalDecision, cur = 0;
         for (const key of DECODER_TRAITS.decision) {
             cur += this.properties[key];
@@ -264,6 +266,7 @@ class Simulation {
                 this.map[l1].push({
                     environment: ~~(Math.random() * 16), // environment code
                     agents: [], // list of agents in the chunk
+                    resource: 0, // energy in a chunk, OR energy distribute for each agent
                 });
                 outHTML += `<td id="td${l1}-${l2}">
                         <button id="btn${l1}-${l2}" onclick="document.getElementById('list').style.display = 'block';openList(${l1}, ${l2})"></button>
@@ -291,8 +294,14 @@ class Simulation {
     tick() {
         // run for every tick of the simulation
         for (const x of this.map)
-            for (const y of x)
+            for (const y of x) {
+                y.resource = 0;
                 for (const agent of y.agents) agent.preTick();
+                if (y.agents.length > 0) {
+                    y.resource /= y.agents.length;
+                    y.resource = Math.floor(y.resource)
+                };
+            }
         for (const x of this.map)
             for (const y of x)
                 for (const agent of y.agents) agent.tick()

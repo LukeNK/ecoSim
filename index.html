@@ -79,6 +79,13 @@
             border: 1px solid var(--color-fg);
             overflow: auto;
         }
+        #property {
+            top: 50vh;
+            right: 50vw;
+            color: var(--color-bg);
+            border: 1px solid var(--color-fg);
+            overflow: auto;
+        }
     </style>
 </head>
 <body>
@@ -97,14 +104,15 @@
     <div id="list" class="overlay">
         <p style="margin-top: 0px;"><button class="redButton" onclick="document.getElementById('list').style.display = 'none'">Close</button>Chunk inspection</p>
         <div style="padding-left: 1rem;">
-            <p>Chunk population: <span id="chunkPopulation"></span></p>
+            <p>Chunk population: <span id="chunkPopulation"></span>, resource: <span id="chunkResource"></span></p>
             <p>Agent list:</p>
             <dl id="agentList"></dl>
         </div>
     </div>
     <!-- Overlay for the property list -->
     <div id="property" class="overlay">
-
+        <p style="margin-top: 0px;"><button class="redButton" onclick="document.getElementById('property').style.display = 'none'">Close</button>Agent properties</p>
+        <dl id="agentProperty"></dl>
     </div>
 
     <table id="map"></table>
@@ -423,6 +431,7 @@ class Simulation {
 }
     </script> <!-- Script imported for reference -->
     <script>
+        // simulation
         let mainSim = new Simulation(0,0); // intialize, placeholder
         function simInit() {
             // Init
@@ -437,25 +446,10 @@ class Simulation {
             mainSim.tick(); // do one tick for initialization
             document.getElementById('config').style.display = 'none'; // hide config screen
         }
-        let openListSave = {x:0, y:0}
-        function openList(x, y) {
-            if (document.getElementById('list').style.display == 'none') return;
-            if (x == undefined || y == undefined) {x = openListSave.x, y = openListSave.y}
-            else {openListSave.x = x; openListSave.y = y}
-            let chunk = mainSim.map[x][y];
-            let agents = chunk.agents;
-            document.getElementById('chunkPopulation').innerText = agents.length;
-
-            let res = '';
-            for (const agent of agents) 
-                res += `<dt><button>${agent.trait.getId()}</button></dt><dd>Age: ${agent.age}/${agent.properties.oldAge}</dd><dd>Engery: ${agent.energy}</dd>`
-
-            // display the result
-            document.getElementById('agentList').innerHTML = res;
-        }
         function tick() {
             mainSim.tick();
             openList();
+            openProperty();
             if (mainSim.getAgentCount() <= 1) clearInterval(simInterval);
         }
         let simInterval = null;
@@ -464,6 +458,42 @@ class Simulation {
                 simInterval = setInterval(tick, 500)
             } else
                 try {clearInterval(simInterval); simInterval = null;} catch{}
+        }
+
+        // display
+        let openListSave = {x:0, y:0, z:0}
+        function openList(x, y) {
+            if (document.getElementById('list').style.display == 'none') return;
+            if (x == undefined || y == undefined) {x = openListSave.x, y = openListSave.y}
+            else {openListSave.x = x; openListSave.y = y}
+            let chunk = mainSim.map[x][y];
+            let agents = chunk.agents;
+            document.getElementById('chunkPopulation').innerText = agents.length;
+            document.getElementById('chunkResource').innerText = chunk.resource;
+
+            let res = '';
+            for (const agent of agents)
+                res += `<dt>
+                        <button
+                            onclick="document.getElementById('property').style.display = 'block'; openProperty(${agent.z})">
+                            ${agent.trait.getId()}
+                        </button>
+                    </dt>
+                    <dd>Age: ${agent.age}/${agent.properties.oldAge}</dd>
+                    <dd>Engery: ${agent.energy}</dd>`
+            // display the result
+            document.getElementById('agentList').innerHTML = res;
+        }
+        function openProperty(z) {
+            if (document.getElementById('property').style.display == 'none') return;
+            if (z == undefined) z = openListSave.z;
+            else openListSave.z = z;
+            let a = mainSim.map[openListSave.x][openListSave.y].agents[z], res = '<dt>Properties</dt>';
+            for (const key in a.properties) {
+                const element = a.properties[key];
+                res += `<dd>${key}: ${element}</dd>`
+            }
+            document.getElementById('agentProperty').innerHTML = res;
         }
     </script>
 </body>
