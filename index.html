@@ -49,6 +49,10 @@
             color: var(--color-fg);
             background-color: transparent;
         }
+        button:hover {
+            color: var(--color-bg);
+            background-color: var(--color-blue);
+        }
         /* Classes */
         .overlay {
             position: fixed;
@@ -68,10 +72,6 @@
         #map button {
             width: 100%;
             height: 100%;
-        }
-        #map button:hover {
-            color: var(--color-bg);
-            background-color: var(--color-blue);
         }
         #list {
             left: 50vw;
@@ -439,8 +439,9 @@ class Simulation {
         }
         let openListSave = {x:0, y:0}
         function openList(x, y) {
-            if (!x || !y) {x = openListSave.x, y = openListSave.y};
-            openListSave.x = x; openListSave.y = y;
+            if (document.getElementById('list').style.display == 'none') return;
+            if (x == undefined || y == undefined) {x = openListSave.x, y = openListSave.y}
+            else {openListSave.x = x; openListSave.y = y}
             let chunk = mainSim.map[x][y];
             let agents = chunk.agents;
             document.getElementById('chunkPopulation').innerText = agents.length;
@@ -451,7 +452,6 @@ class Simulation {
 
             // display the result
             document.getElementById('agentList').innerHTML = res;
-            document.getElementById('list').style.display = 'block';
         }
         function tick() {
             mainSim.tick();

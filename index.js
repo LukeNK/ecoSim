@@ -266,7 +266,7 @@ class Simulation {
                     agents: [], // list of agents in the chunk
                 });
                 outHTML += `<td id="td${l1}-${l2}">
-                        <button id="btn${l1}-${l2}" onclick="openList(${l1}, ${l2})"></button>
+                        <button id="btn${l1}-${l2}" onclick="document.getElementById('list').style.display = 'block';openList(${l1}, ${l2})"></button>
                     </td>`;
             }
             outHTML += '</tr>';
