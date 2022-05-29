@@ -55,6 +55,7 @@ const DECODER_TRAITS = {
     ability: ['speed', 'strength', 'intelligence'],
     mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy', 'breedingTime', 'oldAge', 'matureAge']
 }
+let MUTATION_RATE = 0.01; // So the user can change it
 
 class Trait {
     /**
@@ -66,7 +67,10 @@ class Trait {
         // check input
         if (!p || !m) throw 'Missing Boolean array for p and m'
 
-        this.paternal = p; this.maternal = m; // save th array
+        this.paternal = [...p]; this.maternal = [...m]; // copy the array
+        // Mutation!
+        for (let g of this.paternal) if (Math.random() <= MUTATION_RATE) g = !g;
+        for (let g of this.maternal) if (Math.random() <= MUTATION_RATE) g = !g;
         this.code = []; // Boolean array of the code of the trait
         // code into traits
         for (let l = 0; l < p.length; l++)
@@ -154,7 +158,7 @@ class Agent {
             if (envDiff == Infinity) envDiff = 1; // controversial math
             for (const p of DECODER) {
                 if (!p.env) continue; // skip properties without env
-                this.properties[p.name] *= (envDiff * p.env);
+                this.properties[p.name] = this.potentials[p.name] * (envDiff * p.env);
                 this.properties[p.name] = Math.round(this.properties[p.name]); // round because float suck
             }
         }

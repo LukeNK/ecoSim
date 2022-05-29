@@ -97,14 +97,18 @@
         <label>Simulation Height (y)</label>
         <input id="configHeight" type="number"><br>
         <label>Starting population</label>
-        <input id="configStartPopulation" type="number"><br>
+        <input id="configStartPopulation" type="number">
+        <label>Mutation rate (&lt;1)</label>
+        <input id="configMutationRate" type="number"><br>
         <button onclick="simInit()">Start simulation</button>
     </div>
     <!-- Overlay of the list of agent in a chunk -->
     <div id="list" class="overlay">
         <p style="margin-top: 0px;"><button class="redButton" onclick="document.getElementById('list').style.display = 'none'">Close</button>Chunk inspection</p>
         <div style="padding-left: 1rem;">
-            <p>Chunk population: <span id="chunkPopulation"></span>, resource: <span id="chunkResource"></span></p>
+            <p>Chunk population: <span id="chunkPopulation"></span>,
+                resource: <span id="chunkResource"></span>,
+                environment: <span id="chunkEnvironment"></span></p>
             <p>Agent list:</p>
             <dl id="agentList"></dl>
         </div>
@@ -435,6 +439,7 @@ class Simulation {
         let mainSim = new Simulation(0,0); // intialize, placeholder
         function simInit() {
             // Init
+            MUTATION_RATE = document.getElementById('configMutationRate').value;
             let arr = [], e = ~~document.getElementById('configStartPopulation').value;
             for (;e > 0; e--) arr.push(new Agent(null, null, mainSim));
             mainSim = new Simulation(
@@ -469,7 +474,8 @@ class Simulation {
             let chunk = mainSim.map[x][y];
             let agents = chunk.agents;
             document.getElementById('chunkPopulation').innerText = agents.length;
-            document.getElementById('chunkResource').innerText = chunk.resource;
+            document.getElementById('chunkResource').innerText = chunk.resource * agents.length;
+            document.getElementById('chunkEnvironment').innerText = chunk.environment;
 
             let res = '';
             for (const agent of agents)
@@ -488,8 +494,15 @@ class Simulation {
             if (document.getElementById('property').style.display == 'none') return;
             if (z == undefined) z = openListSave.z;
             else openListSave.z = z;
-            let a = mainSim.map[openListSave.x][openListSave.y].agents[z], res = '<dt>Properties</dt>';
+            let a = mainSim.map[openListSave.x][openListSave.y].agents[z];
+            if (a == undefined) return;
+            let res = `<p>Trait Id: ${a.trait.getId()}</p><dt>Properties</dt>`;
             for (const key in a.properties) {
+                const element = a.properties[key];
+                res += `<dd>${key}: ${element}</dd>`
+            }
+            res += '<dt>potentials</dt>'
+            for (const key in a.potentials) {
                 const element = a.properties[key];
                 res += `<dd>${key}: ${element}</dd>`
             }
