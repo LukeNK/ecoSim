@@ -91,6 +91,11 @@
             border: 1px solid var(--color-fg);
             overflow: auto;
         }
+
+        /* Style for test sim */
+        table td {
+            border: 1px solid var(--color-blue);
+        }
     </style>
 </head>
 <body>
@@ -131,28 +136,43 @@
         <button onclick="mainSim.map[openListSave.x][openListSave.y].agents[openListSave.z].move(); tick()">Force move</button>
         <dl id="agentProperty"></dl>
     </div>
-
-    <table id="map"></table>
-    <p>Population: <span id="population"></span></p>
-    <p>Total birth: <span id="totalMating"></span></p>
-    <p>Total death: <span id="totalDeath"></span></p>
-    <!-- Controls-->
-    <button onclick="tick()">Tick: <span id="tickCount"></span></button>
-    <button onclick="playSimulation()">Run/Pause simulation</button>
+    <button onclick="scriptFunc()">Start running (CPU AND RAM INTENSIVE!)</button>
+    <p>Thank you for helping me out. Please copy this folllowing table to Excel and the final console.log (which is a list of numbers separated by commas) to Luke after the simulator completed. You should open the console to make sure things is working, and task manager (or htop for Posix) to prepare for the worst case.</p>
 
     <table id="tempTab">
     </table>
 
-    <script src="./index.js">
-        const DECODER = [
+    <script>
+// specially customized framework for testing
+const ext = {
+    /**
+     * Cleaner console.log()
+     * @param {String} content Input string for loggin
+     * @param {Number|String} level The level of importance, can be customize with string
+     * @param {String} sender The function that send the content (better if call stack)
+     */
+    log: (content, level, sender) => {
+        const minLevel = 1;
+        const lvl = ['NONE', 'INFO', 'WARN', 'CRIT', 'ERROR', 'EXIT', 'DEBUG']
+        if (level < minLevel) return;
+        content = `${sender? ' @ ' + sender: ''}] ${content}`
+        if (typeof(level) == 'string') console.log(`[${level}${content}`);
+        else if (level == 1) console.info(`[INFO${content}`)
+        else if (level == 2) console.warn(`[WARN${content}`);
+        else if (level == 4) console.error(`[ERROR${content}`);
+        else console.log(`[${lvl[level? level : 0]}${content}`);
+    },
+}
+
+const DECODER = [
     // env: the weight of the environment factor to the property
     // offset: if the potential need to be add with the number after decode (only 1 for now)
     // codeLength: the length in the code
     // pos: position offset
     // basic stuff
-    {name: 'speed', env: 1, codeLength: 10, pos: -5},
+    {name: 'speed', env: 1, codeLength: 10},
     {name: 'strength', env: 1, codeLength: 10},
-    {name: 'friendliness', env: 1, codeLength: 10},
+    {name: 'friendliness', env: 1, codeLength: 10, pos: -5},
     {name: 'intelligence', codeLength: 10},
     {name: 'outlook', codeLength: 10},
     // actions: chance for the agent to do something (Agent.tick())
@@ -167,11 +187,20 @@
     {name: 'energyConsumption', codeLength: 5}, // now much energy takes for each tick
     // age in tick
     {name: 'oldAge', offset: 1, codeLength: 10}, // the age where the agent dies, offset so it always > 0
-    {name: 'matureAge', codeLength: 9}, // TODO
+    {name: 'matureAge', codeLength: 5}, // time until able to mate
+    // mating-relate
+    {name: 'breedingTime', codeLength: 5}, // How long it took before the Agent able to mate again
     {name: 'mateSelection', codeLength: 10}, // how selective is the agent to mate
 ]
 let DECODER_TOTAL = 0;
-for (const potential of DECODER) DECODER_TOTAL += potential.codeLength;
+for (const potential of DECODER) DECODER_TOTAL += potential.codeLength + (potential.pos? potential.pos : 0);
+const DECODER_TRAITS = {
+    // Elements to check in for loops
+    decision: ['doAttack', 'doMate', 'doMove'],
+    ability: ['speed', 'strength', 'intelligence'],
+    mateExclude: ['mateSelection', 'energyConsumption', 'maxEnergy', 'breedingTime', 'oldAge', 'matureAge']
+}
+let MUTATION_RATE = 0.01; // So the user can change it
 
 class Trait {
     /**
@@ -183,7 +212,10 @@ class Trait {
         // check input
         if (!p || !m) throw 'Missing Boolean array for p and m'
 
-        this.paternal = p; this.maternal = m; // save th array
+        this.paternal = [...p]; this.maternal = [...m]; // copy the array
+        // Mutation!
+        for (let g of this.paternal) if (Math.random() <= MUTATION_RATE) g = !g;
+        for (let g of this.maternal) if (Math.random() <= MUTATION_RATE) g = !g;
         this.code = []; // Boolean array of the code of the trait
         // code into traits
         for (let l = 0; l < p.length; l++)
@@ -193,7 +225,10 @@ class Trait {
         this.potentials = {}; // List of potentials and properties
         for (const potential of DECODER)
             this.potentials[potential.name] = potential.codeLength;
-        for (let l = 0, t = 0; l < this.code.length; l += DECODER[t].codeLength, t++) {
+        for (let l = 0, t = 0;
+            t < DECODER.length;
+            l += DECODER[t].codeLength + (DECODER[t].pos? DECODER[t].pos : 0), t++
+        ) {
             let pCode = ''; // potential code
             for (let l1 = 0; l1 < DECODER[t].codeLength; l1++) pCode += this.code[l + l1]? '1':'0';
             this.potentials[DECODER[t].name] = parseInt(pCode, 2) + (DECODER[t].offset? DECODER[t].offset : 0);
@@ -224,14 +259,14 @@ class Agent {
         if (p && m) {
             this.paternal = p; this.maternal = m;
             this.trait = new Trait(
-                p.trait[~~(Math.random() + 0.5)? 'paternal' : 'maternal'],
-                m.trait[~~(Math.random() + 0.5)? 'paternal' : 'maternal']
+                p.trait[Math.round(Math.random())? 'paternal' : 'maternal'],
+                m.trait[Math.round(Math.random())? 'paternal' : 'maternal']
             );
         } else {
             let pCode = [], mCode = [];
             for (let l = 0; l < DECODER_TOTAL; l++) {
-                pCode.push(~~(Math.random() + 0.5));
-                mCode.push(~~(Math.random() + 0.5));
+                pCode.push(Math.round(Math.random()));
+                mCode.push(Math.round(Math.random()));
             }
             this.trait = new Trait(pCode, mCode);
         }
@@ -240,8 +275,15 @@ class Agent {
         // extra non-genertic properties
         this.age = 0;
         this.energy = this.properties.maxEnergy;
+        this.breedingCooldown = 0;
+        // generate total decision for use in tick()
+        this.totalDecision = 0;
+        for (const key in this.properties) {
+            if (!DECODER_TRAITS.decision.includes(key)) continue; // only get necessary variable
+            this.totalDecision += this.properties[key];
+        }
 
-        // other properties
+        // location properties
         this.x = 0; this.y = 0; this.z = 0; // coord
         this.sim = sim; // simulation reference
     }
@@ -249,11 +291,13 @@ class Agent {
         // to make sure that the agent is ready for actions
         this.age++; // increase the age
         this.energy -= this.properties.energyConsumption;
+        this.sim.map[this.x][this.y].resource += this.properties.energyConsumption;
+        if (this.breedingCooldown != 0) this.breedingCooldown--; // decrease cooldown
 
         // check if the agent should die yet
         if (
             this.age > this.properties.oldAge ||
-            this.energy < 0
+            this.energy <= 0
         ) return this.die();
 
         // calculate the property if the agent is in different environment
@@ -262,7 +306,7 @@ class Agent {
             if (envDiff == Infinity) envDiff = 1; // controversial math
             for (const p of DECODER) {
                 if (!p.env) continue; // skip properties without env
-                this.properties[p.name] *= (envDiff * p.env);
+                this.properties[p.name] = this.potentials[p.name] * (envDiff * p.env);
                 this.properties[p.name] = Math.round(this.properties[p.name]); // round because float suck
             }
         }
@@ -271,19 +315,17 @@ class Agent {
      * Function that run for each tick to determine which action the agent will do
      */
     tick() {
-        // generate decision randomly
-        let totalDecision = 0;
-        for (const key in this.properties) {
-            if (!['doAttack', 'doMate', 'doMove'].includes(key)) continue; // only get necessary variable
-            totalDecision += this.properties[key];
-        }
-        let decision = Math.random() * totalDecision;
-        // check if more energy is needed
-        if (this.properties.energyConsumption > this.energy) {
-            // prioritize for necessary situation
-            this.attack(this.sim.getRandomAgent(this));
-        } else  {
-
+        this.energy += this.sim.map[this.x][this.y].resource;
+        let decision = Math.random() * this.totalDecision, cur = 0;
+        for (const key of DECODER_TRAITS.decision) {
+            cur += this.properties[key];
+            if (decision < cur) {
+                let alone = (this.sim.getRandomAgent(this) == null); // check if alone or not
+                if (!alone && key == 'doAttack') this.attack(this.sim.getRandomAgent(this));
+                else if (!alone && key == 'doMate') this.mate(this.sim.getRandomAgent(this));
+                else if (alone && key == 'doMove') this.move();
+                break; // finish tick
+            }
         }
     }
     /**
@@ -291,24 +333,24 @@ class Agent {
      * @param {Agent} target agent to attack
      */
     attack(target) {
-        if (this.properties.speed < target.properties.speed) target.energy -= this.properties.speed;
-        else if (this.properties.speed == target.properties.speed && this.properties.intelligence < target.properties.intelligence) {
-            this.energy -= this.properties.speed;
-            target.energy -= target.properties.speed;
+        let ap = target.properties, tp = this.properties;
+        if (tp.speed < ap.speed) target.energy -= tp.speed;
+        else if (tp.speed == ap.speed && tp.intelligence < ap.intelligence) {
+            this.energy -= tp.speed;
+            target.energy -= ap.speed;
         } else {
-            this.energy -= this.properties.speed; target.energy -= target.properties.speed; // reduce energy
+            this.energy -= tp.speed; target.energy -= ap.speed; // reduce energy
             // calulate stats
             let thisTotal = 0, targetTotal = 0;
-            for (const key in this.properties) {
-                if (!['speed', 'strength', 'intelligence'].includes(key)) continue; // only get necessary variable
-                thisTotal += this.properties[key];
-                targetTotal += target.properties[key];
+            for (const key of DECODER_TRAITS.ability) {
+                thisTotal += tp[key];
+                targetTotal += ap[key];
             }
-            if (thisTotal - targetTotal >= 0) {
-                this.energy += target.energy + target.properties.energyConsumption;
+            if (thisTotal >= targetTotal) {
+                this.energy += target.energy + ap.energyConsumption;
                 target.energy = 0; // flag to die
             } else {
-                target.energy += this.energy + this.properties.energyConsumption;
+                target.energy += this.energy + tp.energyConsumption;
                 this.energy = 0; // flag to die
             }
         }
@@ -320,8 +362,10 @@ class Agent {
      */
     mate(target) {
         let notFit = false;
+        if (this.breedingCooldown || target.breedingCooldown) notFit = true;
+        if (this.age < this.properties.matureAge || target.age < target.properties.matureAge) notFit = true; // FBI HERE OPEN UP
         for (const key in target.properties) {
-            if (['mateSelection', 'energyConsumption', 'maxEnergy'].includes(key)) continue; // element to skip
+            if (DECODER_TRAITS.mateExclude.includes(key)) continue; // element to skip
             const element = target.properties[key];
             if (
                 Math.abs(element - this.properties[key]) > this.properties.mateSelection &&
@@ -329,6 +373,10 @@ class Agent {
             ) { notFit = true; break }
         }
         if (notFit) return false;
+        // Flag that already mated
+        this.breedingCooldown = this.properties.breedingTime;
+        this.sim.stats.totalMating++; // report stats
+
         let child = new Agent(this, target, this.sim); // give birth to the new child
         this.sim.newAgent(child, this.x, this.y);
         return child; // return back, careful not to to repeat newAgent() process again
@@ -339,12 +387,15 @@ class Agent {
      * @param {Number} y
      */
     move(x, y) {
+        if (x == undefined) x = ~~(Math.random() * this.sim.width);
+        if (y == undefined) y = ~~(Math.random() * this.sim.height);
         this.sim.rmAgent(this); // delete from current position
         this.sim.newAgent(this, x, y); // move to new place
     }
     die() {
         // nope there is no better name
-        this.sim.rmAgent(this, true);
+        this.sim.stats.totalDeath++; // report first
+        this.sim.rmAgent(this, true); // remove out of existence
     }
 }
 
@@ -358,29 +409,30 @@ class Simulation {
     constructor(width, height, agents) {
         this.width = width; this.height = height;
         // create a map and HTML to write
-        this.map = []; let outHTML = '';
+        this.map = [];
         // Pushing is in reverse to preserve [x][y]
         for (let l1 = 0; l1 < width; l1++) {
             this.map.push([]);
-            outHTML += '<tr>';
             for (let l2 = 0; l2 < height; l2++) {
                 this.map[l1].push({
-                    environment: ~~(Math.random()*16), // environment code
+                    environment: ~~(Math.random() * 16), // environment code
                     agents: [], // list of agents in the chunk
+                    resource: 0, // energy in a chunk, OR energy distribute for each agent
                 });
-                let e = this.map[l1][l2].environment;
-                outHTML += `<td id="td${l1}-${l2}">${e < 10? '0' + e: e}
-                        <button id="btn${l1}-${l2}"></button>
-                    </td>`;
             }
-            outHTML += '</tr>';
         }
-        document.getElementById('map').innerHTML = outHTML; // update
 
         if (!agents) return;
         // Add agents randomly
         for (const agent of agents)
-            this.map[~~(Math.random * width)][~~(Math.random * height)].agents.push(agent);
+            this.newAgent(agent, ~~(Math.random() * width), ~~(Math.random() * height));
+
+        this.stats = {
+            // statistic for report
+            totalMating: 0,
+            totalDeath: 0,
+            tickCount: 0,
+        }
     }
     /**
      * Call preTick() and tick() for every agent
@@ -388,16 +440,19 @@ class Simulation {
     tick() {
         // run for every tick of the simulation
         for (const x of this.map)
-            for (const y of x)
+            for (const y of x) {
+                y.resource = 0;
                 for (const agent of y.agents) agent.preTick();
+                if (y.agents.length > 0) {
+                    y.resource /= y.agents.length;
+                    y.resource = Math.floor(y.resource)
+                };
+            }
         for (const x of this.map)
             for (const y of x)
                 for (const agent of y.agents) agent.tick()
 
-        // Update display
-        for (const x in this.map)
-            for (const y in this.map[x])
-                document.getElementById(`btn${x}-${y}`).innerHTML = this.map[x][y].agents.length;
+        this.stats.tickCount++; // report
     }
     /**
      * Handle the process to add agent to the simulation
@@ -418,6 +473,9 @@ class Simulation {
      */
     rmAgent(a, reset) {
         this.map[a.x][a.y].agents.splice(a.z, 1);
+        // Update agents' Z in that same chunk
+        for (const z in this.map[a.x][a.y].agents)
+            this.map[a.x][a.y].agents[z].z = z;
         if (reset) {
             a.x = undefined, a.y = undefined, a.z = undefined;
             a.sim = undefined;
@@ -442,9 +500,10 @@ class Simulation {
     getRandomAgent(agent) {
         if (agent) {
             let targetZ = agent.z;
+            if (this.map[agent.x][agent.y].agents.length == 1) return null;
             while (targetZ == agent.z)
                 targetZ = ~~(Math.random() * this.map[agent.x][agent.y].agents.length);
-            return this.map[agent.x][agent.y].agents[targetZ]
+            return this.map[agent.x][agent.y].agents[targetZ];
         }
     }
 }
@@ -455,7 +514,7 @@ class Simulation {
         function simInit() {
             // Init
             MUTATION_RATE = configMutationRate;
-            let arr = [], e = ~~document.getElementById('configStartPopulation').value;
+            let arr = [], e = pop;
             for (;e > 0; e--) arr.push(new Agent(null, null, mainSim));
             mainSim = new Simulation(
                 configHeigth, // swap x, y
@@ -476,7 +535,7 @@ class Simulation {
         function playSimulation() {
             if (!simInterval) {
                 simInterval = true;
-                while (mainSim.getAgentCount() <= 10000 && simInterval != null) tick();
+                while (mainSim.getAgentCount() <= pop*10 && simInterval != null && mainSim.stats.tickCount < 5000) tick();
             } else
                 try {simInterval = null;} catch{}
         }
@@ -541,21 +600,24 @@ class Simulation {
         }
 
         // Run script
-        let simCount = 0, simResult = [],
+        let simCount = 0, simResult = [], pop = 0,
             configMutationRate = 0.1,
             configHeigth = 10,
             configWidth = 10;
-        setTimeout(() => {
-            for (let pop = 0; pop < 1000; pop++) {
+        document.getElementById('config').style.display = 'none'; // hide config screen
+        function scriptFunc () {
+            for (pop = 0; pop < 10; pop++) {
                 simResult.push(0);
                 document.getElementById('configStartPopulation').value = pop;
-                for (let run = 0; run < 100; run++) {
+                for (let run = 0; run < 1000; run++) {
                     simInit(); playSimulation();
-                    ext.log(`Done simulation ${pop}-${run}`, 1, 'Script')
-                    simResult[pop] += 1;
+                    if (mainSim.getAgentCount() > 1) simResult[pop] += 1;
                 }
+                ext.log(`Done for ${pop} at ${simResult[pop]}/100 run`, 1, 'Script')
+                document.getElementById('tempTab').innerHTML += `<tr><td>${pop}</td><td>${simResult[pop]}</td></tr>`
             }
-        }, 1000)
+            console.log(simResult.join());
+        }
     </script>
 </body>
 </html>
