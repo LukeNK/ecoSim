@@ -606,10 +606,10 @@ class Simulation {
             configWidth = 10;
         document.getElementById('config').style.display = 'none'; // hide config screen
         function scriptFunc () {
-            for (pop = 0; pop < 10; pop++) {
+            for (pop = 0; pop < 5000; pop++) {
                 simResult.push(0);
                 document.getElementById('configStartPopulation').value = pop;
-                for (let run = 0; run < 1000; run++) {
+                for (let run = 0; run < 100; run++) {
                     simInit(); playSimulation();
                     if (mainSim.getAgentCount() > 1) simResult[pop] += 1;
                 }
